@@ -2,73 +2,69 @@ import React, { useEffect, useState } from "react";
 import useApi from "../hook/useApi.js";
 import { setData, getData } from "../utils/iDbStore.js";
 import { useLocation } from "react-router-dom";
+
 function SecurePDFViewer() {
     const [pdfUrl, setPdfUrl] = useState("");
     const [error, setError] = useState(null);
     const { loading, request } = useApi();
     const location = useLocation();
     const searchParams = new URLSearchParams(location.search);
+    const pdfID = searchParams.get("id");
 
     const fetchPdf = async () => {
         try {
-            const response = await request("POST", "/pdf", {
-                ID: searchParams.get("id"),
-            });
+            const response = await request("POST", "/pdf", { ID: pdfID });
 
             if (!response.data.pdf) {
                 throw new Error("No PDF data received");
             }
-            // console.log(response.data);
 
+            // Convert Base64 to Blob
             const byteCharacters = atob(response.data.pdf);
-            const byteNumbers = new Array(byteCharacters.length)
-                .fill(0)
-                .map((_, i) => byteCharacters.charCodeAt(i));
-            const byteArray = new Uint8Array(byteNumbers);
-            const pdfBlob = new Blob([byteArray], {
-                type: "application/pdf",
-            });
+            const byteArray = new Uint8Array(byteCharacters.length).map(
+                (_, i) => byteCharacters.charCodeAt(i)
+            );
+            const pdfBlob = new Blob([byteArray], { type: "application/pdf" });
 
+            // Store in IndexedDB
             await setData(response.data.ID, { pdfBlob });
 
-            // Create Blob URL
+            // Create Blob URL & Set PDF
             const url = URL.createObjectURL(pdfBlob);
             setPdfUrl(url);
             setError(null);
         } catch (err) {
-            console.error("Error loading PDF:", err);
+            console.error("❌ Error loading PDF:", err);
             setError("Failed to load PDF. Please try again.");
         }
     };
 
-    const ViwePDF = async () => {
-        const data = await getData(searchParams.get("id"));
-        console.log(data);
-        if (data) {
-            const url = URL.createObjectURL(data);
-            console.log(url);
-            setPdfUrl(url);
-        } else {
+    const viewPDF = async () => {
+        try {
+            const storedData = await getData(pdfID);
+            if (storedData) {
+                // Create a Blob URL from stored data
+                const url = URL.createObjectURL(storedData);
+                setPdfUrl(url);
+            } else {
+                await fetchPdf();
+            }
+        } catch (error) {
+            console.error("❌ Error fetching from IndexedDB:", error);
             fetchPdf();
         }
     };
-    useEffect(() => {
-        ViwePDF();
 
-        // fetchPdf();
+    useEffect(() => {
+        viewPDF();
 
         return () => {
             if (pdfUrl) {
-                URL.revokeObjectURL(pdfUrl); // Free up memory
-                setPdfUrl(""); // Clear state
+                URL.revokeObjectURL(pdfUrl); // Free memory
+                setPdfUrl("");
             }
         };
-    }, []);
-
-    // Load from IndexedDB if available
-    // useEffect(() => {
-
-    // }, []);
+    }, [pdfID]); // Runs when `pdfID` changes
 
     return (
         <div className='w-full h-full'>

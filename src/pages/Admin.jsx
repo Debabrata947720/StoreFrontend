@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import toast from "react-hot-toast";
-import axios from "axios";
 import useApi from "../hook/useApi";
+import { useDispatch, useSelector } from "react-redux";
+import { AddData } from "../Store/slices/AdminStates.js";
+
 const AdminDashboard = () => {
     const { register, handleSubmit, reset } = useForm();
     const [file, setFile] = useState(null);
@@ -11,22 +13,18 @@ const AdminDashboard = () => {
     const { request, loading, error } = useApi();
     // Reference for hidden file input
     const fileInputRef = useRef(null);
+    const Dispatch = useDispatch();
+    const Details = useSelector((state) => state.Admin.AdminDashboard);
 
-    // Fetch admin statistics
+    const fetchStats = async () => {
+        const res = await request("POST", "/admin/details", {});
+        Dispatch(AddData(res.data));
+    };
     useEffect(() => {
-        const fetchStats = async () => {
-            const res = request("POST", "/admin/stats");
-            // try {
-            //     const response = await axios.get(
-            //         "http://localhost:5000/api/admin/stats"
-            //     );
-            //     setStats(response.data);
-            // } catch (error) {
-            //     toast.error("Failed to load stats.");
-            // }
-        };
-        fetchStats();
-    }, []);
+        if (!Details) {
+            fetchStats();
+        }
+    }, [Details]);
 
     // Handle file selection
     const handleFileSelect = (event) => {
@@ -101,17 +99,23 @@ const AdminDashboard = () => {
                         <h3 className='text-lg font-semibold'>
                             👥 Total Users
                         </h3>
-                        <p className='text-2xl font-bold'>{stats.users}</p>
+                        <p className='text-2xl font-bold'>
+                            {Details?.totalUsers}
+                        </p>
                     </div>
                     <div className='rounded-lg p-4 shadow-lg'>
                         <h3 className='text-lg font-semibold'>
                             📂 Total Uploads
                         </h3>
-                        <p className='text-2xl font-bold'>{stats.uploads}</p>
+                        <p className='text-2xl font-bold'>
+                            {Details?.totalPDFs}
+                        </p>
                     </div>
                     <div className='rounded-lg p-4 shadow-lg'>
                         <h3 className='text-lg font-semibold'>💰 Earnings</h3>
-                        <p className='text-2xl font-bold'>${stats.earnings}</p>
+                        <p className='text-2xl font-bold'>
+                            ₹{Details?.totalAmountCollected}
+                        </p>
                     </div>
                 </div>
 

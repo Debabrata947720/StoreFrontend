@@ -19,8 +19,8 @@ const useApi = () => {
 
         try {
             const headers = {
-                "Content-Type":  "application/json", 
-                ...options
+                "Content-Type": "application/json",
+                ...options,
             };
 
             // Add auth token if required
@@ -43,17 +43,24 @@ const useApi = () => {
             if (err.response) {
                 const { status, data } = err.response;
                 if (status === 401) {
-                    toast.error("Session expired, please log in again.");
+                    toast.error(
+                        data.message || "Session expired, please login again."
+                    );
                     localStorage.removeItem("token");
                     dispatch(SetLoginStutas(null));
                     navigate("/login"); // Redirect to login
                 } else if (status === 403) {
-                    toast.error("You do not have permission for this action.");
+                    toast.error(data.message || "You do not have permission for this action.");
+                } else if (status === 302) {
+                    if (data.t === "A") {
+                        console.log(data);
+                        navigate("/admin/verify");
+                    }
                 } else {
                     toast.error(data.message || "Something went wrong.");
                 }
 
-                setError(data?.error );
+                setError(data?.error);
             } else if (err.request) {
                 toast.error("Network error. Check your connection.");
                 setError("Network error. Check your connection.");

@@ -40,8 +40,8 @@ export const getData = async (id) => {
         return new Promise((resolve, reject) => {
             const tx = db.transaction(STORE_NAME, "readonly");
             const store = tx.objectStore(STORE_NAME);
+            console.log(id);
             const request = store.get(id);
-
             request.onsuccess = () => resolve(request.result?.pdfBlob || null);
             request.onerror = () => reject("❌ Failed to retrieve data");
         });

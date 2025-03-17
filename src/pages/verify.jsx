@@ -12,7 +12,6 @@ const VerifyOTP = () => {
     const navigate = useNavigate();
     const dispatch = useDispatch();
 
-    // Pre-fill OTP from URL parameter
     useEffect(() => {
         const otpFromURL = searchParams.get("code");
         console.log(otpFromURL);
