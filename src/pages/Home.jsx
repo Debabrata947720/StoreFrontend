@@ -3,7 +3,7 @@ import useApi from "../hook/useApi";
 import { useSelector, useDispatch } from "react-redux";
 import { addProduct } from "../Store/slices/pdfSlice";
 import { useNavigate } from "react-router-dom";
-
+import toast from "react-hot-toast";
 const Home = () => {
     const { request, loading } = useApi();
     const dispatch = useDispatch();
@@ -117,7 +117,10 @@ const Home = () => {
                             </p>
 
                             {pdf.price > 0 ? (
-                                <button className='mt-3 w-full rounded-lg bg-green-500 text-white py-2 transition-all duration-300 hover:bg-green-600 hover:scale-105'>
+                                <button
+                                    className='mt-3 w-full rounded-lg bg-green-500 text-white py-2 transition-all duration-300 hover:bg-green-600 hover:scale-105'
+                                    onClick={() => toast.error("Currently Unable")}
+                                >
                                     Buy Now
                                 </button>
                             ) : (

@@ -1,15 +1,21 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import useApi from "../hook/useApi.js";
 import { setData, getData } from "../utils/iDbStore.js";
 import { useLocation } from "react-router-dom";
+import * as pdfjsLib from "pdfjs-dist";
+
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
 function SecurePDFViewer() {
-    const [pdfUrl, setPdfUrl] = useState("");
+    const [pdfBlob, setPdfBlob] = useState(null);
+    const [numPages, setNumPages] = useState(null);
     const [error, setError] = useState(null);
     const { loading, request } = useApi();
     const location = useLocation();
     const searchParams = new URLSearchParams(location.search);
     const pdfID = searchParams.get("id");
+    const containerRef = useRef(null);
 
     const fetchPdf = async () => {
         try {
@@ -21,17 +27,17 @@ function SecurePDFViewer() {
 
             // Convert Base64 to Blob
             const byteCharacters = atob(response.data.pdf);
-            const byteArray = new Uint8Array(byteCharacters.length).map(
-                (_, i) => byteCharacters.charCodeAt(i)
-            );
+            const byteArray = new Uint8Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+                byteArray[i] = byteCharacters.charCodeAt(i);
+            }
             const pdfBlob = new Blob([byteArray], { type: "application/pdf" });
 
             // Store in IndexedDB
-            await setData(response.data.ID, { pdfBlob });
+            await setData(response.data.ID, pdfBlob);
 
-            // Create Blob URL & Set PDF
-            const url = URL.createObjectURL(pdfBlob);
-            setPdfUrl(url);
+            // Set PDF Blob
+            setPdfBlob(pdfBlob);
             setError(null);
         } catch (err) {
             console.error("❌ Error loading PDF:", err);
@@ -43,9 +49,8 @@ function SecurePDFViewer() {
         try {
             const storedData = await getData(pdfID);
             if (storedData) {
-                // Create a Blob URL from stored data
-                const url = URL.createObjectURL(storedData);
-                setPdfUrl(url);
+                // Set PDF Blob from stored data
+                setPdfBlob(storedData);
             } else {
                 await fetchPdf();
             }
@@ -55,40 +60,60 @@ function SecurePDFViewer() {
         }
     };
 
+    const renderPDF = async () => {
+        if (!pdfBlob || !containerRef.current) return;
+
+        try {
+            const url = URL.createObjectURL(pdfBlob);
+            const loadingTask = pdfjsLib.getDocument(url);
+            const pdf = await loadingTask.promise;
+
+            setNumPages(pdf.numPages);
+
+            containerRef.current.innerHTML = "";
+
+            for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i);
+                const viewport = page.getViewport({ scale: 1.5 });
+
+                const canvas = document.createElement("canvas");
+                const context = canvas.getContext("2d");
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+                containerRef.current.appendChild(canvas);
+
+                const renderContext = {
+                    canvasContext: context,
+                    viewport: viewport,
+                };
+                await page.render(renderContext).promise;
+            }
+
+            // Clean up the Blob URL
+            URL.revokeObjectURL(url);
+        } catch (error) {
+            console.error("❌ Error rendering PDF:", error);
+            setError("Failed to render PDF. Please try again.");
+        }
+    };
+
     useEffect(() => {
         viewPDF();
+    }, [pdfID]);
 
-        return () => {
-            if (pdfUrl) {
-                URL.revokeObjectURL(pdfUrl); // Free memory
-                setPdfUrl("");
-            }
-        };
-    }, [pdfID]); // Runs when `pdfID` changes
+    useEffect(() => {
+        if (pdfBlob) renderPDF();
+    }, [pdfBlob]);
 
     return (
-        <div className='w-full h-full'>
+        <div className='w-full h-full overflow-y-auto'>
             {loading ? (
                 <p>Loading PDF...</p>
             ) : error ? (
                 <p style={{ color: "red" }}>{error}</p>
-            ) : pdfUrl ? (
-                <div className='relative w-full h-full'>
-                    <iframe
-                        src={`${pdfUrl}#toolbar=0&navpanes=0&scrollbar=1`}
-                        width='100%'
-                        height='100%'
-                        style={{
-                            border: "1px solid black",
-                            pointerEvents: "auto",
-                            position: "relative",
-                            zIndex: 2,
-                        }}
-                        title='Secure PDF Viewer'
-                    ></iframe>
-                </div>
             ) : (
-                <p>No PDF to display.</p>
+                <div ref={containerRef} className='w-full h-full flex flex-col gap-0.5'>
+                </div>
             )}
         </div>
     );
