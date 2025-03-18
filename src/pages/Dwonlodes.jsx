@@ -47,7 +47,7 @@ function DownloadedList() {
                         <div
                             key={index}
                             className='flex items-center p-3  shadow-md rounded-lg  transition cursor-pointer'
-                            onClick={() => navigate("/download/v")}
+                            onClick={() => navigate(`/download/v?id=${pdf.id}`)}
                         >
                             {console.log(pdf)}
                             <canvas
