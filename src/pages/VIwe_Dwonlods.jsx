@@ -9,8 +9,8 @@ pdfjsLib.GlobalWorkerOptions.workerSrc =
 
 function SecurePDFViewer() {
     const [pdfBlob, setPdfBlob] = useState(null);
-    const [numPages, setNumPages] = useState(null);
     const [error, setError] = useState(null);
+    const [scale, setScale] = useState(1.5);
     const { loading, request } = useApi();
     const location = useLocation();
     const searchParams = new URLSearchParams(location.search);
@@ -20,23 +20,16 @@ function SecurePDFViewer() {
     const fetchPdf = async () => {
         try {
             const response = await request("POST", "/pdf", { ID: pdfID });
+            if (!response.data.pdf) throw new Error("No PDF data received");
 
-            if (!response.data.pdf) {
-                throw new Error("No PDF data received");
-            }
-
-            // Convert Base64 to Blob
-            const byteCharacters = atob(response.data.pdf);
-            const byteArray = new Uint8Array(byteCharacters.length);
-            for (let i = 0; i < byteCharacters.length; i++) {
-                byteArray[i] = byteCharacters.charCodeAt(i);
-            }
+            const byteArray = new Uint8Array(
+                atob(response.data.pdf)
+                    .split("")
+                    .map((char) => char.charCodeAt(0))
+            );
             const pdfBlob = new Blob([byteArray], { type: "application/pdf" });
 
-            // Store in IndexedDB
-            await setData(response.data.ID, pdfBlob);
-
-            // Set PDF Blob
+            await setData(response.data.ID, response.data);
             setPdfBlob(pdfBlob);
             setError(null);
         } catch (err) {
@@ -49,8 +42,15 @@ function SecurePDFViewer() {
         try {
             const storedData = await getData(pdfID);
             if (storedData) {
-                // Set PDF Blob from stored data
-                setPdfBlob(storedData);
+                const byteArray = new Uint8Array(
+                    atob(storedData.pdf)
+                        .split("")
+                        .map((char) => char.charCodeAt(0))
+                );
+                const pdfBlob = new Blob([byteArray], {
+                    type: "application/pdf",
+                });
+                setPdfBlob(pdfBlob);
             } else {
                 await fetchPdf();
             }
@@ -65,31 +65,27 @@ function SecurePDFViewer() {
 
         try {
             const url = URL.createObjectURL(pdfBlob);
-            const loadingTask = pdfjsLib.getDocument(url);
-            const pdf = await loadingTask.promise;
-
-            setNumPages(pdf.numPages);
-
+            const pdf = await pdfjsLib.getDocument(url).promise;
             containerRef.current.innerHTML = "";
 
             for (let i = 1; i <= pdf.numPages; i++) {
                 const page = await pdf.getPage(i);
-                const viewport = page.getViewport({ scale: 1.5 });
+                const viewport = page.getViewport({ scale });
 
                 const canvas = document.createElement("canvas");
-                const context = canvas.getContext("2d");
+                const context = canvas.getContext("2d", {
+                    willReadFrequently: true,
+                }); // Fix blurring
                 canvas.height = viewport.height;
                 canvas.width = viewport.width;
+                canvas.style.width = "100%"; // Make canvas responsive
+                canvas.style.height = "auto"; // Maintain aspect ratio
                 containerRef.current.appendChild(canvas);
 
-                const renderContext = {
-                    canvasContext: context,
-                    viewport: viewport,
-                };
+                const renderContext = { canvasContext: context, viewport };
                 await page.render(renderContext).promise;
             }
 
-            // Clean up the Blob URL
             URL.revokeObjectURL(url);
         } catch (error) {
             console.error("❌ Error rendering PDF:", error);
@@ -97,13 +93,34 @@ function SecurePDFViewer() {
         }
     };
 
+    const handleZoom = (newScale) => {
+        setScale(Math.max(0.5, Math.min(3, newScale))); // Clamp scale between 0.5 and 3
+    };
+
+    useEffect(() => {
+        const preventActions = (e) => e.preventDefault();
+        const container = containerRef.current;
+
+        if (container) {
+            container.addEventListener("contextmenu", preventActions);
+            container.addEventListener("dragstart", preventActions);
+        }
+
+        return () => {
+            if (container) {
+                container.removeEventListener("contextmenu", preventActions);
+                container.removeEventListener("dragstart", preventActions);
+            }
+        };
+    }, []);
+
     useEffect(() => {
         viewPDF();
     }, [pdfID]);
 
     useEffect(() => {
         if (pdfBlob) renderPDF();
-    }, [pdfBlob]);
+    }, [pdfBlob, scale]);
 
     return (
         <div className='w-full h-full overflow-y-auto'>
@@ -112,7 +129,11 @@ function SecurePDFViewer() {
             ) : error ? (
                 <p style={{ color: "red" }}>{error}</p>
             ) : (
-                <div ref={containerRef} className='w-full h-full flex flex-col gap-0.5'>
+                <div>
+                    <div
+                        ref={containerRef}
+                        className='w-full h-full flex flex-col gap-0.5'
+                    ></div>
                 </div>
             )}
         </div>

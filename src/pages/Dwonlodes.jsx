@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { getAllData } from "../utils/iDbStore";
 import { useNavigate } from "react-router-dom";
-
+import DwonlodeCard from "../components/PdfCard";
 function DownloadedList() {
     const [pdfData, setPdfData] = useState([]);
     const navigate = useNavigate();
@@ -44,32 +44,9 @@ function DownloadedList() {
             ) : (
                 <div className='space-y-4'>
                     {pdfData.map((pdf, index) => (
-                        <div
-                            key={index}
-                            className='flex items-center p-3  shadow-md rounded-lg  transition cursor-pointer'
-                            onClick={() => navigate(`/download/v?id=${pdf.id}`)}
-                        >
-                            {console.log(pdf)}
-                            <canvas
-                                id={`pdf-thumbnail-${index}`}
-                                width='80'
-                                height='100'
-                                className=' rounded-md'
-                            ></canvas>
-
-                            {/* Right Side - PDF Info */}
-                            <div className='flex-1 ml-4'>
-                                <h3 className='text-lg font-medium'>
-                                    {pdf.tite || "Untitled PDF"}
-                                </h3>
-                                <p className='text-sm '>
-                                    {pdf.description ||
-                                        "No description available"}
-                                </p>
-                                <p className='text-xs '>
-                                    {(pdf.pdfblob?.size / 1024).toFixed(2)} KB
-                                </p>
-                            </div>
+                        <div>
+                            <DwonlodeCard pdf={pdf} index={index} />
+                            <DwonlodeCard pdf={pdf} index={index} />
                         </div>
                     ))}
                 </div>

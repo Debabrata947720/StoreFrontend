@@ -42,7 +42,7 @@ export const getData = async (id) => {
             const store = tx.objectStore(STORE_NAME);
             console.log(id);
             const request = store.get(id);
-            request.onsuccess = () => resolve(request.result?.pdfBlob || null);
+            request.onsuccess = () => resolve(request.result || null);
             request.onerror = () => reject("❌ Failed to retrieve data");
         });
     } catch (error) {
